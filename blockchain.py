@@ -137,7 +137,7 @@ def new_transactions():
     return jsonify(response),201
 
 # メソッドはGETで/mineエンドポイントを作る
-@app.route('/mine',method=['GET'])
+@app.route('/mine',methods=['GET'])
 def mine():
     # 次のプルーフを見つけるためプルーフオブワークアルゴリズムを使用する
     last_block = blockchain.last_block
@@ -166,7 +166,7 @@ def mine():
     return jsonify(response),200
 
 # メソッドはGETで、フルのブロックチェーンをリターンする/chainエンドポイントを作る
-@app.route('/chein',method=['GET'])
+@app.route('/chein',methods=['GET'])
 def full_chain():
     response = {
         'chain': blockchain.chain,
