@@ -88,7 +88,7 @@ class Blockchain(object):
         guess_hash = hashlib.sha256(guess).hexdigest()
 
         # ここでtrueかfalseを返す
-        return guess_hash[:4] = "0000"
+        return guess_hash[:4] == "0000"
 
 
     @property
@@ -110,71 +110,70 @@ class Blockchain(object):
         return hashlib.sha256(block_string).hexdigest()
 
 
+# ノードを作る
+app = Flask(__name__)
 
-    # ノードを作る
-    app = Flask(__name__)
+# このノードのグローバルにユニークなアドレスを付与する
+node_indentifire = str(uuid4()).replace('-','')
 
-    # このノードのグローバルにユニークなアドレスを付与する
-    node_indentifire = str(uuid4()).replace('-','')
+# ブロックチェーンのクラスをインスタンス化する
+blockchain = Blockchain()
 
-    # ブロックチェーンのクラスをインスタンス化する
-    blockchain = Blockchain()
+# メソッドはPOSTで/transactions/newエンドポイントを作る。メソッドはPOSTなのでデータを送信する
+@app.route('/transactions/new',methods=['POST'])
+def new_transactions():
+    values = request.get_json()
 
-    # メソッドはPOSTで/transactions/newエンドポイントを作る。メソッドはPOSTなのでデータを送信する
-    @app.route('/transactions/new',methods=['POST'])
-    def new_transactions():
-        values = request.get_json()
+    # POSTされたデータに必要なデータがあるか確認
+    required = ['sender','recipient','amount']
 
-        # POSTされたデータに必要なデータがあるか確認
-        required = ['sender','recipient','amount']
+    if not all(k in values for k in required):
+        return 'Missing values',400
 
-        if not all(k in values for k in required):
-            return 'Missing values',400
+    # 新しいトランザクションを作る
+    index = blockchain.new_transaction(values['sender'],values['recipient'],values['amount'])
 
-        # 新しいトランザクションを作る
-        index = blockchain.new_transaction(values['sender'],values['recipient'],values['amount'])
+    response = {'message':f'トランザクションはブロック{index}に追加されました'}
+    return jsonify(response),201
 
-        response = {'message':f'トランザクションはブロック{index}に追加されました'}
-        return jsonify(response),201
+# メソッドはGETで/mineエンドポイントを作る
+@app.route('/mine',method=['GET'])
+def mine():
+    # 次のプルーフを見つけるためプルーフオブワークアルゴリズムを使用する
+    last_block = blockchain.last_block
+    last_proof = last_block['proof']
+    proof = blockchain.proof_of_work(last_proof)
 
-    # メソッドはGETで/mineエンドポイントを作る
-    @app.route('/mine',method=['GET'])
-    def mine():
-        # 次のプルーフを見つけるためプルーフオブワークアルゴリズムを使用する
-        last_block = blockchain.last_block
-        last_proof = last_block['proof']
-        proof = blockchain.proof_of_work(last_proof)
+    # プルーフを見つけたことに対する報酬を得る
+    # 送信者は、採掘者が新しいコインを採掘したことを表すために"0"とする
+    blockchain.new_transaction(
+        sender = "0",
+        recipient = node_indentifire,
+        amount=1,
+    )
 
-        # プルーフを見つけたことに対する報酬を得る
-        # 送信者は、採掘者が新しいコインを採掘したことを表すために"0"とする
-        blockchain.new_transaction(
-            sender = "0",
-            recipient = node_indentifire,
-            amount=1,
-        )
+    # チェーンにブロックを追加することで新しいブロックを採掘する
+    block = blockchain.new_block(proof)
 
-        # チェーンにブロックを追加することで新しいブロックを採掘する
-        block = blockchain.new_block(proof)
+    response = {
+        'message': '新しいブロックを採掘しました',
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+    }
 
-        response = {
-            'message': '新しいブロックを採掘しました',
-            'index': block['index'],
-            'transactions': block['transactions'],
-            'proof': block['proof'],
-            'previous_hash': block['previous_hash'],
-        }
+    return jsonify(response),200
 
-        return jsonify(response),200
+# メソッドはGETで、フルのブロックチェーンをリターンする/chainエンドポイントを作る
+@app.route('/chein',method=['GET'])
+def full_chain():
+    response = {
+        'chain': blockchain.chain,
+        'length': len(blockchain.chain),
+    }
+    return jsonify(response), 200
 
-    # メソッドはGETで、フルのブロックチェーンをリターンする/chainエンドポイントを作る
-    @app.route('/chein',method=['GET'])
-    def full_chain():
-        response = {
-            'chain': blockchain.chain,
-            'length': len(blockchain.chain),
-        }
-        return jsonify(response), 200
-
-    # port5000でサーバーを起動する
-    if __name__ == '__main__':
-        app.run(host='0.0.0.0',port=5000)
+# port5000でサーバーを起動する
+if __name__ == '__main__':
+    app.run(host='0.0.0.0',port=5000)
