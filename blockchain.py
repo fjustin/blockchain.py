@@ -7,7 +7,7 @@ from time import time
 # ハッシュキャッシュ実装のためのモジュール
 from uuid import uuid4
 
-from flask import Flask
+from flask import Flask,jsonify,request
 
 
 class Blockchain(object):
@@ -123,7 +123,19 @@ class Blockchain(object):
     # メソッドはPOSTで/transactions/newエンドポイントを作る。メソッドはPOSTなのでデータを送信する
     @app.route('/transactions/new',methods=['POST'])
     def new_transactions():
-        return '新しいトランザクションを追加します'
+        values = request.get_json()
+
+        # POSTされたデータに必要なデータがあるか確認
+        required = ['sender','recipient','amount']
+
+        if not all(k in values for k in required):
+            return 'Missing values',400
+
+        # 新しいトランザクションを作る
+        index = blockchain.new_transaction(values['sender'],values['recipient'],values['amount'])
+
+        response = {'message':f'トランザクションはブロック{index}に追加されました'}
+        return jsonify(response),201
 
     # メソッドはGETで/mineエンドポイントを作る
     @app.route('/mine',method=['GET'])
