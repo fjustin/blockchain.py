@@ -4,10 +4,10 @@ import hashlib
 import json
 from textwrap import dedent
 from time import time
-# ハッシュキャッシュ実装のためのモジュール
 from uuid import uuid4
 
-from flask import Flask,jsonify,request
+import requests
+from flask import Flask, jsonify, request
 
 
 class Blockchain(object):
@@ -30,7 +30,7 @@ class Blockchain(object):
         block = {
             'index': len(self.chain) + 1,
             'timestamp': time(),
-            'transaction': self.current_transactions,
+            'transactions': self.current_transactions,
             'proof': proof,
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
@@ -60,37 +60,6 @@ class Blockchain(object):
 
         return self.last_block['index'] + 1
 
-    def proof_of_work(self,last_proof):
-        """
-        シンプルなプルーフオブワークのアルゴリズム:
-        - hash(pp')の最初の4つが0となるようなp'を探す
-        - p は1つ前のブロックのプルーフ、p' は新しいブロックのプルーフ
-        :params last_proof: <int>
-        :return: <int>
-        """
-
-        proof = 0
-        while self.valid_proof(last_proof,proof) is False:
-            proof += 1
-
-        return proof
-
-    @staticmethod
-    def valid_proof(last_proof,proof):
-        """
-        プルーフが正しいかどうか確認する: hash(last_proof,proof)の最初の4つが0となっているか？
-        :params last_proof: <int> 前のプルーフ
-        :params proof: <int> 現在のプルーフ
-        :return: <bool> 正しければtrue、そうでなければfalse
-        """
-
-        guess = f'{last_proof}{proof}'.encode()
-        guess_hash = hashlib.sha256(guess).hexdigest()
-
-        # ここでtrueかfalseを返す
-        return guess_hash[:4] == "0000"
-
-
     @property
     # 読み取り専用。Rubyのattr_readerと同じ役割
     def last_block(self):
@@ -109,32 +78,63 @@ class Blockchain(object):
         block_string = json.dumps(block, sort_keys = True).encode()
         return hashlib.sha256(block_string).hexdigest()
 
+    def proof_of_work(self,last_proof):
+        """
+        シンプルなプルーフオブワークのアルゴリズム:
+        - hash(pp')の最初の4つが0となるようなp'を探す
+        - p は1つ前のブロックのプルーフ、p' は新しいブロックのプルーフ
+        :params last_proof: <int>
+        :return: <int>
+        """
+
+        proof = 0
+        while self.valid_proof(last_proof,proof) is False:
+            proof += 1
+
+        return proof
+
+
+    @staticmethod
+    def valid_proof(last_proof,proof):
+        """
+        プルーフが正しいかどうか確認する: hash(last_proof,proof)の最初の4つが0となっているか？
+        :params last_proof: <int> 前のプルーフ
+        :params proof: <int> 現在のプルーフ
+        :return: <bool> 正しければtrue、そうでなければfalse
+        """
+
+        guess = f'{last_proof}{proof}'.encode()
+        guess_hash = hashlib.sha256(guess).hexdigest()
+
+        # ここでtrueかfalseを返す
+        return guess_hash[:4] == "0000"
+
+
 
 # ノードを作る
 app = Flask(__name__)
 
 # このノードのグローバルにユニークなアドレスを付与する
-node_indentifire = str(uuid4()).replace('-','')
+node_identifire = str(uuid4()).replace('-','')
 
 # ブロックチェーンのクラスをインスタンス化する
 blockchain = Blockchain()
 
 # メソッドはPOSTで/transactions/newエンドポイントを作る。メソッドはPOSTなのでデータを送信する
-@app.route('/transactions/new',methods=['POST'])
-def new_transactions():
+@app.route('/transactions/new', methods=['POST'])
+def new_transaction():
     values = request.get_json()
 
-    # POSTされたデータに必要なデータがあるか確認
-    required = ['sender','recipient','amount']
-
-    if not all(k in values for k in required):
-        return 'Missing values',400
+    # POSTされたデータに必要なデータがあるかを確認
+    required = ['sender', 'recipient', 'amount']
+    if not all(i in values for i in required):
+        return 'Missing values', 400
 
     # 新しいトランザクションを作る
-    index = blockchain.new_transaction(values['sender'],values['recipient'],values['amount'])
+    index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
 
-    response = {'message':f'トランザクションはブロック{index}に追加されました'}
-    return jsonify(response),201
+    response = {'message': f'トランザクションはブロック {index} に追加されました'}
+    return jsonify(response), 201
 
 # メソッドはGETで/mineエンドポイントを作る
 @app.route('/mine',methods=['GET'])
@@ -148,7 +148,7 @@ def mine():
     # 送信者は、採掘者が新しいコインを採掘したことを表すために"0"とする
     blockchain.new_transaction(
         sender = "0",
-        recipient = node_indentifire,
+        recipient = node_identifire,
         amount=1,
     )
 
@@ -166,7 +166,7 @@ def mine():
     return jsonify(response),200
 
 # メソッドはGETで、フルのブロックチェーンをリターンする/chainエンドポイントを作る
-@app.route('/chein',methods=['GET'])
+@app.route('/chain',methods=['GET'])
 def full_chain():
     response = {
         'chain': blockchain.chain,
