@@ -5,7 +5,7 @@ import json
 from textwrap import dedent
 from time import time
 from uuid import uuid4
-
+from urllib.parse import urlparse
 
 import requests
 from flask import Flask, jsonify, request
@@ -15,9 +15,85 @@ class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
+        self.nodes = set()
 
         # ジェネシスブロックを作る
         self.new_block(previous_hash = 1, proof = 100)
+
+
+    def register_node(self,address):
+        """
+        ノードリストに新しいノードを加える
+        :params address: <str> ノードのアドレス 例: 'http://0.0.0.0:5000'
+        :return: None
+        """
+
+        parsed_url = urlparse(address)
+        self.nodes.add(parsed_url.netloc)
+
+    def valid_chain(self,chain):
+        """
+        ブロックチェーンが正しいか確認する
+
+        :params chain: <list> ブロックチェーン
+        :return: <bool> Trueであれば正しく、 Falseであればそうでない
+        """
+
+        last_block = chain[0]
+        current_index = 1
+
+        while current_index < len(chain):
+            block = chain[current_index]
+            print(f'{last_block}')
+            print(f'{block}')
+            print("\n--------------\n")
+
+            # ブロックのハッシュが正しいか確認
+            if block['previous_hash'] != self.hash(last_block):
+                return False
+
+            # プルーフオブワークが正しいか確認
+            if not self.valid_proof(last_block['proof'],block['proof']):
+                return False
+
+            last_block = block
+            current_index += 1
+
+        return True
+
+    def resolve_conflicts(self):
+        """
+        これがコンセンサスアルゴリズムだ。ネットワーク上の最も長いチェーンで自らのチェーンを
+        置き換えることでコンフリクトを解消する。
+        :return: <bool> 自らのチェーンが置き換えられると True,そうでなければ False
+        """
+
+        neighbours = self.nodes
+        new_chain = None
+
+        # 自らのチェーンより長いチェーンを探す必要がある
+
+        max_length = len(self.chain)
+
+        # 他の全てのノードのチェーンを確認
+        for node in neighbours:
+            response = requests.get(f'http://{node}/chain')
+
+            if response.status_code == 200:
+                length = response.json()['length']
+                chain = response.json()['chain']
+
+                # そのチェーンがより長いか、有効かを確認
+                if length > max_length and self.valid_chain(chain):
+                    max_length = length
+                    new_chain = chain
+
+        # もし自らのチェーンより長く、かつ有効なチェーンを見つけた場合に置き換える
+        if new_chain:
+            self.chain = new_chain
+            return True
+
+        return False
 
     def new_block(self,proof,previous_hash = None):
         # 新しいブロックを作り、チェーンに加える
