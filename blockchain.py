@@ -6,6 +6,7 @@ from textwrap import dedent
 from time import time
 from uuid import uuid4
 
+
 import requests
 from flask import Flask, jsonify, request
 
@@ -35,8 +36,10 @@ class Blockchain(object):
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
 
+
         # 現在のトランザクションリストをセット
         self.current_transactions = []
+
 
         self.chain.append(block)
         return block
@@ -107,6 +110,7 @@ class Blockchain(object):
         guess_hash = hashlib.sha256(guess).hexdigest()
 
         # ここでtrueかfalseを返す
+
         return guess_hash[:4] == "0000"
 
 
